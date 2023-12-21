@@ -1,4 +1,6 @@
-use sdl2::{render::Canvas, video::Window, event::Event, keyboard::Keycode, EventPump};
+use std::fs;
+
+use sdl2::{render::Canvas, video::Window, event::Event, keyboard::Keycode, EventPump, ttf::Font, pixels::Color};
 
 
 pub struct Game {
@@ -22,7 +24,14 @@ impl Game {
         canvas.present();
     
         let event_pump = sdl_context.event_pump().unwrap();
-    
+
+        let sdl_ttf_context = sdl2::ttf::init().unwrap();
+
+        let font = sdl_ttf_context
+            .load_font("./assets/fonts/OpenSans-Regular.ttf", 12)
+            .unwrap();
+        let partial_rendering = font.render("hello, wrold!");
+        partial_rendering.solid(Color::RGB(255, 255, 255)).unwrap();
         Self {
             canvas,
             event_pump,
@@ -35,6 +44,7 @@ impl Game {
         
         'running: loop {
             // print prompt
+
             // get user input
             for event in self.event_pump.poll_iter() {
                 match event {
@@ -46,7 +56,14 @@ impl Game {
                 }
             }
             // handle user input (update)
+
             // print response
+            self.canvas.clear();
+            self.canvas.present();
         }
+    }
+
+    fn _print_prompt(prompt: String) {
+
     }
 }

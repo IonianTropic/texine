@@ -1,3 +1,8 @@
+
+use game::Game;
+
+mod game;
+
 fn main() {
-    println!("Hello, texine!");
+    Game::new().run()
 }

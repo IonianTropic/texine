@@ -1,9 +1,5 @@
-use core::num;
-
 use sdl2::render::Canvas;
 use sdl2::video::Window;
-use sdl2::event::Event;
-use sdl2::keyboard::Keycode;
 use sdl2::EventPump;
 use sdl2::ttf::{Font, Sdl2TtfContext};
 use sdl2::pixels::Color;
@@ -56,7 +52,7 @@ impl Display {
         let num_texel_cols = SCREEN_WIDTH/texel_width;
 
         // Check if location is valid
-        if location.0 > num_texel_rows || location.1 > num_texel_cols {
+        if location.1 > num_texel_rows || location.0 > num_texel_cols {
             panic!("index out of bounds >:(")
         }
 
@@ -84,14 +80,14 @@ impl Display {
 
     }
 
-    pub fn text_demo(&mut self) {        
+    pub fn _text_demo(&mut self, text: String) {        
         // Create surface with desired text
         let font = self.ttf_context
             .load_font("./assets/fonts/PerfectDOSVGA437Win.ttf", FONT_SIZE)
             .unwrap();
 
         let surface = font
-            .render("hello, wrold!")
+            .render(&text)
             .blended(Color::RGB(255,255,255))
             .map_err(|e| e.to_string())
             .unwrap();

@@ -1,9 +1,7 @@
-use std::fs;
 use crate::display::Display;
+use std::{thread, time};
 
-
-
-use sdl2::{render::Canvas, video::Window, event::Event, keyboard::Keycode, EventPump, ttf::{Font, Sdl2TtfContext}, pixels::Color, render::TextureQuery, rect::Rect};
+use sdl2::{event::Event, keyboard::Keycode};
 
 
 pub struct Game {
@@ -24,9 +22,10 @@ impl Game {
     }
 
     pub fn run(&mut self) {
-        // self.display.text_demo();
-        self.test_texel_put();
-        self.display.canvas.present();
+        // self.display._text_demo();
+        // self._test_texel_put();
+        // self.display.canvas.present();
+        self.texel_print("Hello world!");
 
         'running: loop {
             // print prompt
@@ -48,7 +47,7 @@ impl Game {
         }
     }
 
-    fn test_texel_put(&mut self) {
+    fn _test_texel_put(&mut self) {
         let test_string = "Hello Texine!";
         for i in 0..test_string.len() {
             self.display.put_texel(
@@ -56,7 +55,16 @@ impl Game {
                 (i.try_into().unwrap(), 0)
             )
         }
+    }
 
+    fn texel_print(&mut self, text: &str) {
+        self.display.canvas.clear();
+        for (character, i) in text.chars().zip(0..text.len()) {
+            self.display.put_texel(character, (i.try_into().unwrap(), 0));
+            self.display.canvas.present();
+
+            thread::sleep(time::Duration::from_millis(50));
+        }
     }
     
 }

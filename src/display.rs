@@ -1,6 +1,6 @@
 use core::panic;
 
-use sdl2::render::Canvas;
+use sdl2::render::{Canvas, TextureCreator, Texture};
 use sdl2::video::Window;
 use sdl2::EventPump;
 use sdl2::ttf::{Font, Sdl2TtfContext};
@@ -8,29 +8,26 @@ use sdl2::pixels::Color;
 use sdl2::render::TextureQuery;
 use sdl2::rect::Rect;
 
+
+
 const FONT_SIZE: u16 = 30;
 const PADDING: u32 = 20;
-// Font is monospace, so this is the character used for different calculations like dimensions
-const REPRESENTATIVE_CHAR: char = 'A';  
+const REPRESENTATIVE_CHAR: char = 'A';
 
-pub struct Display {
-    pub canvas: Canvas<Window>,
-    pub event_pump: EventPump,
+struct Sdl2Display {
+    // Private SDL2-related fields
+    canvas: Canvas<sdl2::video::Window>,
+    texture_creator: TextureCreator<sdl2::video::WindowContext>,
     ttf_context: Sdl2TtfContext,
-    pub texel_size: (u32, u32),
-    pub texel_map: TexelMap,
-    pub screen_size: (u32, u32),
+    event_pump: EventPump,
 }
 
-impl Display {
-    // Width and height are in texels.
-    pub fn new(width: u32, height: u32) -> Self {
+impl Sdl2Display {
+    pub fn new(screen_size: (u32, u32), ttf_context: Sdl2TtfContext, font: &Font) -> Self {
+        let (texel_width, texel_height) = TexelMap::calculate_texel_dimensions(font, REPRESENTATIVE_CHAR);
         
-        let ttf_context = sdl2::ttf::init().unwrap();
-        let (texel_width, texel_height) = Self::get_texel_size(&ttf_context);
-        
-        let screen_width = PADDING*2 + width*texel_width;
-        let screen_height = PADDING*2 + height*texel_height;
+        let screen_width = PADDING*2 + screen_size.0*texel_width;
+        let screen_height = PADDING*2 + screen_size.1*texel_height;
 
         let sdl_context = sdl2::init().unwrap();
         let video_subsystem = sdl_context.video().unwrap();
@@ -41,132 +38,159 @@ impl Display {
 
         let event_pump = sdl_context.event_pump().unwrap();
 
-        let mut canvas = window.into_canvas().build().unwrap();
-        canvas.clear();
-
-        let texel_map = TexelMap::new(width as usize, height as usize);
+        let canvas = window.into_canvas().build().unwrap();
+        let texture_creator = canvas.texture_creator();
 
         Self {
             canvas,
-            event_pump,
+            texture_creator,
             ttf_context,
-            texel_size: (texel_width, texel_height),
-            texel_map,
-            screen_size: (width, height),
+            event_pump,
         }
     }
 
-    fn get_texel_size(ttf_context: &Sdl2TtfContext) -> (u32, u32) {
-        let font = ttf_context
-            .load_font("./assets/fonts/PerfectDOSVGA437Win.ttf", FONT_SIZE)
-            .unwrap();
 
-        font.size_of_char(REPRESENTATIVE_CHAR).unwrap()
-    }
 
-    // Renders text as a surface and then converts it to a texture and copies it to the target_rect on display
-    fn copy_char(&mut self, text: char, target_rect: Rect) {
+    pub fn copy_char(&mut self, character: char, target_rect: &Rect) {
         let font = self.ttf_context
             .load_font("./assets/fonts/PerfectDOSVGA437Win.ttf", FONT_SIZE)
             .unwrap();
-
         let surface = font
-            .render_char(text)
-            .blended(Color::RGB(255,255,255))   // Abstract this
+            .render_char(character)
+            .blended(Color::RGB(255,255,255))
             .map_err(|e| e.to_string())
             .unwrap();
 
-        let texture_creator = self.canvas.texture_creator();
-        let texture = texture_creator
+        let texture = self.texture_creator
             .create_texture_from_surface(&surface)
             .map_err(|e| e.to_string())
             .unwrap();
 
-        // let TextureQuery {width, height, ..} = texture.query();
-        // println!("Width: {}. Height: {}", width, height); 
-
-        self.canvas.copy(&texture, None, target_rect).unwrap();
+        self.canvas.copy(&texture, None, *target_rect);
     }
 
-    // Updates entire screen in one go from the texel_map
-    // FIXME: Slow
-    pub fn update_all(&mut self) {
-        self.canvas.clear();
 
-        for y in 0..self.texel_map.height {
-            for x in 0..self.texel_map.width {
-                let target_rect = self.get_rect_from_texel(x, y);
-                let texel = self.texel_map.get_texel(x, y);
-                let texel_char = texel.character;
+}
 
-                self.copy_char(texel_char, target_rect);
-                // self.canvas.present();
+// This is what the user will interact with
+pub struct Display {
+    sdl2display: Sdl2Display,
+    pub texel_map: TexelMap,
+    pub screen_size: (u32, u32),
+    pub screen_mutable: bool,
+    pub texel_size: u16,
+    pub texel_size_mutable: bool,
+}
 
-            }
+
+impl Display {
+    pub fn new(
+        screen_size: (u32, u32), 
+        screen_mutable: bool, 
+        texel_size: u16, 
+        texel_size_mutable: bool
+    ) -> Self {
+        let ttf_context = sdl2::ttf::init().unwrap();
+        let font = ttf_context
+        .load_font("./assets/fonts/PerfectDOSVGA437Win.ttf", texel_size)
+        .unwrap();
+
+        // FIXME: It's a miracle this wasn't throwing errors before
+        // This is a big issue as a result of storing either the ttf_context or font in a field
+        let sdl2display = Sdl2Display::new(screen_size, ttf_context, &font);
+
+        let texel_map = TexelMap::new(screen_size, &font);
+
+        Self {
+            sdl2display,
+            texel_map,
+            screen_size,
+            screen_mutable,
+            texel_size,
+            texel_size_mutable
         }
-        self.canvas.present();
     }
 
-    pub fn update_indices(&mut self, indices: Vec<usize>) {
-        // TODO: test me
-        // TODO: Implement dirty rectangles/flags to generate indices
-        // similar to update_all, except update only the given indices
-        for idx in indices.iter() {
-            if *idx < self.texel_map.texels.len() {
-                // Because idx = y*width + x:
-                let x = idx % self.texel_map.width;
-                let y = (idx - x) / self.texel_map.width;
+    pub fn write_texel(&mut self, character: char, location: (usize, usize)) {
+        self.texel_map.put_texel(character, location);
+        self.sdl2display.copy_char(
+            character, 
+            self.texel_map.get_rect(location)
+        );
+    }
 
-                let target_rect = self.get_rect_from_texel(x, y);
-                let texel = self.texel_map.get_texel(x, y);
+    // renders/copies all texels into the window
+    pub fn update_all(&mut self, ) {
+        panic!("Not yet implemented :(");
+    }
 
-                self.copy_char(texel.character, target_rect);
-            }
+    pub fn get_event_pump(&mut self) -> &mut EventPump {
+        &mut self.sdl2display.event_pump
+    }
+
+    pub fn resize_window(&mut self, size: (u32,u32)) {
+        if self.screen_mutable {
+            // Change screen size in pixels
+            // Do we then adjust the screen size in texels to fit, adjust the size of texels, or just leave it?
+            panic!("Not yet implemented");
         }
-        self.canvas.present();
-    }
-
-    fn get_rect_from_texel(&mut self, x: usize, y: usize) -> Rect {
-        let (texel_width, texel_height) = self.texel_size;
-
-        Rect::new(
-            x as i32 * texel_width as i32 + PADDING as i32,
-            y as i32 * texel_height as i32 + PADDING as i32,
-            texel_width,
-            texel_height
-        )
     }
 }
 
 #[derive(Clone)]
-pub struct Texel {
+struct Texel {
     character: char,
-    // dirty: bool, //FIXME: 
-    // color: Color,
-    // style: ,
-    // etc
+
 }
 
 pub struct TexelMap {
     width: usize,
     height: usize,
     texels: Vec<Texel>,
+    rects: Vec<Rect>,
 }
 
 impl TexelMap {
-    pub fn new(width: usize, height: usize) -> Self {
-        let mut texels = vec![Texel {character: ' '}; width * height];
+    pub fn new(screen_size: (u32, u32), font: &Font) -> Self {
+        let width = screen_size.0 as usize;
+        let height = screen_size.1 as usize;
+        let num_texels = width * height;
+        let texels = vec![Texel {character: ' '}; num_texels];
+
+        let (texel_width, texel_height) = Self::calculate_texel_dimensions(font, REPRESENTATIVE_CHAR);
+        let mut rects = Vec::with_capacity(width * height);
+
+        for (idx, (x, y)) in itertools::iproduct!(0..width, 0..height).enumerate() {
+            rects[idx] = Rect::new(
+                x as i32 * texel_width as i32 + PADDING as i32,
+                y as i32 * texel_height as i32 + PADDING as i32,
+                texel_width,
+                texel_height
+            )
+        }
 
         Self {
             width,
             height,
             texels,
+            rects,
         }
     }
 
-    pub fn get_texel(&self, x: usize, y: usize) -> &Texel {
+    pub fn calculate_texel_dimensions(font: &Font, representative_char: char) -> (u32, u32) {
+            font.size_of_char(representative_char).unwrap()
+        }
+
+    pub fn get_texel(&self, location: (usize, usize)) -> &Texel {
+        let (x, y) = location;
         let index = y * self.width + x;
         &self.texels[index]
+    }
+
+    pub fn get_rect(&self, location: (usize, usize)) -> &Rect {
+        let (x, y) = location;
+        let index = y * self.width + x;
+        &self.rects[index]
     }
 
     pub fn put_texel(&mut self, character: char, location: (usize, usize)) {
@@ -180,6 +204,10 @@ impl TexelMap {
         for idx in 0..self.texels.len() {
             self.texels[idx].character = character;
         }
+    }
+
+    pub fn clear(&mut self) {
+        self.fill(' ');
     }
 
     pub fn to_string(&self) -> String {
@@ -198,7 +226,7 @@ impl TexelMap {
 
     pub fn get_dirty_indices(&self) -> Vec<usize> {
         // Find which texels have been changed and not yet displayed
-        panic!("Not yet implemented >:(");
+        panic!("Not yet implemented :(");
     }
 
 

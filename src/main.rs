@@ -1,8 +1,8 @@
 use game::Game;
-use display::TexelMap;
 
 mod game;
-mod display;
+// mod display;    // Enable to see the errors :)
+mod displayOLD;
 
 fn main() {
     Game::new().run();

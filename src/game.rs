@@ -1,4 +1,5 @@
-use crate::display::{Display, TexelMap};
+// use crate::display::Display;
+use crate::displayOLD::Display;
 use std::{thread, time};
 
 use sdl2::{event::Event, keyboard::Keycode};
@@ -12,6 +13,7 @@ pub struct Game {
 
 impl Game {
     pub fn new() -> Self {
+        // let display = Display::new((50, 20), false, 10, false);  // this is for the new broken display
         let display = Display::new(50, 20);
 
         Self {

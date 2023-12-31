@@ -12,8 +12,7 @@ pub struct Game {
 
 impl Game {
     pub fn new() -> Self {
-        let texel_map = TexelMap::new(10, 6);
-        let display = Display::new(texel_map);
+        let display = Display::new(50, 20);
 
         Self {
             display,
@@ -23,7 +22,10 @@ impl Game {
     }
 
     pub fn run(&mut self) {
-        self.test_texel_display();
+        // self.test_texel_display();
+        self.display.texel_map.fill('A');
+        self.display.update_all();
+
 
         'running: loop {
             // print prompt
@@ -52,9 +54,8 @@ impl Game {
             self.display.texel_map.put_texel(ch, (i, i));
         }
 
-        self.display.update_display();
+        self.display.update_all();
 
     }
 
-    
 }

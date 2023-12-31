@@ -1,3 +1,5 @@
+use core::panic;
+
 use sdl2::render::Canvas;
 use sdl2::video::Window;
 use sdl2::EventPump;
@@ -80,42 +82,66 @@ impl Display {
             .map_err(|e| e.to_string())
             .unwrap();
 
-        let TextureQuery {width, height, ..} = texture.query();
-
-        println!("Width: {}. Height: {}", width, height); 
+        // let TextureQuery {width, height, ..} = texture.query();
+        // println!("Width: {}. Height: {}", width, height); 
 
         self.canvas.copy(&texture, None, target_rect).unwrap();
     }
 
     // Updates entire screen in one go from the texel_map
+    // FIXME: Slow
     pub fn update_all(&mut self) {
         self.canvas.clear();
-        let (texel_width, texel_height) = self.texel_size;
 
         for y in 0..self.texel_map.height {
             for x in 0..self.texel_map.width {
-                let target_rect = Rect::new(
-                    x as i32 * texel_width as i32 + PADDING as i32,
-                    y as i32 * texel_height as i32 + PADDING as i32,
-                    texel_width,
-                    texel_height
-                );
-
+                let target_rect = self.get_rect_from_texel(x, y);
                 let texel = self.texel_map.get_texel(x, y);
                 let texel_char = texel.character;
 
                 self.copy_char(texel_char, target_rect);
-                self.canvas.present();
+                // self.canvas.present();
 
             }
         }
         self.canvas.present();
+    }
+
+    pub fn update_indices(&mut self, indices: Vec<usize>) {
+        // TODO: test me
+        // TODO: Implement dirty rectangles/flags to generate indices
+        // similar to update_all, except update only the given indices
+        for idx in indices.iter() {
+            if *idx < self.texel_map.texels.len() {
+                // Because idx = y*width + x:
+                let x = idx % self.texel_map.width;
+                let y = (idx - x) / self.texel_map.width;
+
+                let target_rect = self.get_rect_from_texel(x, y);
+                let texel = self.texel_map.get_texel(x, y);
+
+                self.copy_char(texel.character, target_rect);
+            }
+        }
+        self.canvas.present();
+    }
+
+    fn get_rect_from_texel(&mut self, x: usize, y: usize) -> Rect {
+        let (texel_width, texel_height) = self.texel_size;
+
+        Rect::new(
+            x as i32 * texel_width as i32 + PADDING as i32,
+            y as i32 * texel_height as i32 + PADDING as i32,
+            texel_width,
+            texel_height
+        )
     }
 }
 
 #[derive(Clone)]
 pub struct Texel {
     character: char,
+    // dirty: bool, //FIXME: 
     // color: Color,
     // style: ,
     // etc
@@ -168,6 +194,11 @@ impl TexelMap {
         }
 
         output
+    }
+
+    pub fn get_dirty_indices(&self) -> Vec<usize> {
+        // Find which texels have been changed and not yet displayed
+        panic!("Not yet implemented >:(");
     }
 
 
